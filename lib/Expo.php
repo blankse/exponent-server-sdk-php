@@ -179,23 +179,6 @@ class Expo
     }
 
     /**
-     * Handle with unexpected response error
-     *
-     * @throws UnexpectedResponseException
-     *
-     * @return null|resource
-     */
-    private function handleWithUnexpectedResponse($response) {
-        if (is_array($response) && isset($response['body'])) {
-            $errors = json_decode($response['body'])->errors ?? [];
-
-            return $errors[0]->message ?? null;
-        }
-
-        return null;
-    }
-
-    /**
      * Get the cURL resource
      *
      * @throws ExpoException
@@ -218,8 +201,9 @@ class Expo
     /**
      * Executes cURL and captures the response
      *
-     * @param $ch
+     * @param resource $ch
      *
+     * @throws ExpoException
      * @throws UnexpectedResponseException
      *
      * @return array
@@ -231,12 +215,23 @@ class Expo
             'status_code' => curl_getinfo($ch, CURLINFO_HTTP_CODE)
         ];
 
-        $responseData = json_decode($response['body'], true)['data'] ?? null;
+        $responseBody = json_decode($response['body'], true);
+        $responseErrors = $responseBody['errors'] ?? null;
+
+        if (is_array($responseErrors)) {
+            $message = '';
+            foreach ($responseErrors as $key => $item) {
+                $message .= $key == 0? "" : "\r\n";
+                $message .= $item['code'] . ': ' . $item['message'];
+            }
+
+            throw new ExpoException($message);
+        }
+
+        $responseData = $responseBody['data'] ?? null;
 
         if (! is_array($responseData)) {
-            throw new UnexpectedResponseException(
-                $this->handleWithUnexpectedResponse($response)
-            );
+            throw new UnexpectedResponseException();
         }
 
         return $responseData;
